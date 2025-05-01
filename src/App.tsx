@@ -2,11 +2,12 @@ import React, { useState } from 'react';
 import ConnectionForm from './components/ConnectionForm';
 import Dashboard from './components/Dashboard';
 import ApiTester from './components/ApiTester';
-import { Cpu, Globe } from 'lucide-react';
+import { TestKeysDashboard } from './components/TestKeys';
+import { Cpu, Globe, KeyRound } from 'lucide-react';
 
 function App() {
   const [isConnected, setIsConnected] = useState<boolean>(false);
-  const [activeTab, setActiveTab] = useState<'websocket' | 'http'>('websocket');
+  const [activeTab, setActiveTab] = useState<'websocket' | 'http' | 'test-keys'>('websocket');
 
   const handleConnect = () => {
     setIsConnected(true);
@@ -17,7 +18,7 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-dark-900 text-white">
+    <div className="bg-dark-900 text-white">
       <div className="container mx-auto px-4 py-6 flex flex-col h-screen">
         <header className="mb-6">
           <h1 className="text-2xl font-bold text-primary-300">API Testing Suite</h1>
@@ -46,6 +47,17 @@ function App() {
               <Globe className="mr-2" size={18} />
               HTTP API
             </button>
+            <button
+              onClick={() => setActiveTab('test-keys')}
+              className={`flex items-center px-4 py-2 rounded-md transition-colors ${
+                activeTab === 'test-keys'
+                  ? 'bg-primary-600 text-white'
+                  : 'bg-dark-800 text-gray-400 hover:bg-dark-700'
+              }`}
+            >
+              <KeyRound className="mr-2" size={18} />
+              Test Keys
+            </button>
           </div>
         </header>
         
@@ -58,8 +70,10 @@ function App() {
                 <ConnectionForm onConnect={handleConnect} />
               </div>
             )
-          ) : (
+          ) : activeTab === 'http' ? (
             <ApiTester />
+          ) : (
+            <TestKeysDashboard />
           )}
         </main>
         

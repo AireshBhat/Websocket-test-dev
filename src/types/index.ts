@@ -26,3 +26,11 @@ export interface ConnectionStats {
   lastMessageAt?: number;
   reconnectAttempts: number;
 }
+
+export interface TestKey {
+  user_id: number;
+  username: string;
+  private_key: string;
+  public_key: string;
+  index: number;
+}

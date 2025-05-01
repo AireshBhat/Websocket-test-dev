@@ -2,7 +2,7 @@ import { createAuthenticatedClient, generateKeyPair } from '../utils/websocketCl
 import { Message, ConnectionStatus, ConnectionStats } from '../types';
 import { nanoid } from 'nanoid';
 
-class WebSocketService {
+export class WebSocketService {
   private client: any = null;
   private url: string = '';
   private privateKey: string = '';
@@ -65,8 +65,10 @@ class WebSocketService {
       timestamp: Date.now(),
     });
 
+    console.log({ url, privateKey });
     try {
       this.client = await createAuthenticatedClient(url, privateKey);
+      console.log({ client: this.client });
       
       this.updateStatus({
         state: 'connected',

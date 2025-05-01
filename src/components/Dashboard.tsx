@@ -68,7 +68,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onDisconnect }) => {
   };
 
   return (
-    <div className="flex flex-col h-full max-h-screen">
+    <div className="flex flex-col h-full">
       {/* Header */}
       <div className="bg-dark-900 p-4 border-b border-dark-700">
         <div className="flex justify-between items-center">

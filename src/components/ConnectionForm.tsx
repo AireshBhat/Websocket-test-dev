@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { KeyRound, Key, Cpu, RefreshCw, Save, FolderOpen } from 'lucide-react';
+import { KeyRound, Key, Cpu, RefreshCw, Save, FolderOpen, UserRound } from 'lucide-react';
 import websocketService from '../services/websocketService';
-import { ConnectionProfile } from '../types';
+import { testKeysService } from '../services/testKeysService';
+import { ConnectionProfile, TestKey } from '../types';
 
 interface ConnectionFormProps {
   onConnect: () => void;
@@ -17,6 +18,10 @@ const ConnectionForm: React.FC<ConnectionFormProps> = ({ onConnect }) => {
   const [profileName, setProfileName] = useState<string>('');
   const [autoReconnect, setAutoReconnect] = useState<boolean>(false);
   const [reconnectInterval, setReconnectInterval] = useState<number>(5);
+  const [showTestKeys, setShowTestKeys] = useState<boolean>(false);
+  const [testKeys, setTestKeys] = useState<TestKey[]>([]);
+  const [loadingTestKeys, setLoadingTestKeys] = useState<boolean>(false);
+  const [testKeysError, setTestKeysError] = useState<string | null>(null);
 
   // Load saved profiles from localStorage
   useEffect(() => {
@@ -29,6 +34,25 @@ const ConnectionForm: React.FC<ConnectionFormProps> = ({ onConnect }) => {
       console.error('Failed to load profiles from localStorage:', error);
     }
   }, []);
+
+  // When privateKey changes, try to calculate the public key
+  useEffect(() => {
+    if (!privateKey) {
+      setPublicKey('');
+      return;
+    }
+
+    try {
+      // If it's a test key, find the corresponding public key
+      const matchingTestKey = testKeys.find(key => key.private_key === privateKey);
+      if (matchingTestKey) {
+        setPublicKey(matchingTestKey.public_key);
+        return;
+      }
+    } catch (error) {
+      console.error('Failed to derive public key:', error);
+    }
+  }, [privateKey, testKeys]);
 
   const saveProfiles = (updatedProfiles: ConnectionProfile[]) => {
     try {
@@ -76,7 +100,7 @@ const ConnectionForm: React.FC<ConnectionFormProps> = ({ onConnect }) => {
       setPrivateKey(keyPair.privateKey);
       setPublicKey(keyPair.publicKey);
     } catch (error) {
-      setError('Failed to generate key pair');
+      setError(`Failed to generate key pair: ${error as Error}`);
     }
   };
 
@@ -107,25 +131,35 @@ const ConnectionForm: React.FC<ConnectionFormProps> = ({ onConnect }) => {
   const loadProfile = (profile: ConnectionProfile) => {
     setUrl(profile.url);
     setPrivateKey(profile.privateKey);
-    // Calculate public key from private key
-    try {
-      const privateKeyBytes = Uint8Array.from(
-        privateKey.match(/.{1,2}/g)?.map(byte => parseInt(byte, 16)) || []
-      );
-      ed25519.getPublicKey(privateKeyBytes).then(publicKeyBytes => {
-        const publicKey = Array.from(publicKeyBytes)
-          .map(byte => byte.toString(16).padStart(2, '0'))
-          .join('');
-        setPublicKey(publicKey);
-      });
-    } catch (error) {
-      console.error('Failed to derive public key:', error);
-    }
   };
 
   const deleteProfile = (id: string) => {
     const updatedProfiles = profiles.filter(profile => profile.id !== id);
     saveProfiles(updatedProfiles);
+  };
+  
+  const toggleTestKeys = async () => {
+    setShowTestKeys(!showTestKeys);
+    
+    if (!showTestKeys && testKeys.length === 0) {
+      try {
+        setLoadingTestKeys(true);
+        setTestKeysError(null);
+        const keys = await testKeysService.fetchTestKeys();
+        setTestKeys(keys);
+      } catch (error) {
+        setTestKeysError((error as Error).message);
+      } finally {
+        setLoadingTestKeys(false);
+      }
+    }
+  };
+  
+  const testKeyHelper = (testKey: TestKey) => {
+    setPrivateKey(testKey.private_key);
+    setPublicKey(testKey.public_key);
+    setShowTestKeys(false);
+    setProfileName(testKey.username); // Suggest username as profile name
   };
 
   return (
@@ -171,6 +205,7 @@ const ConnectionForm: React.FC<ConnectionFormProps> = ({ onConnect }) => {
             <button
               onClick={generateKeyPair}
               className="bg-secondary-700 hover:bg-secondary-600 text-white px-3 py-2 rounded-r-md transition-colors flex items-center"
+              title="Generate new key pair"
             >
               <RefreshCw size={16} />
             </button>
@@ -238,6 +273,69 @@ const ConnectionForm: React.FC<ConnectionFormProps> = ({ onConnect }) => {
             )}
           </button>
         </div>
+        
+        <div className="pt-2">
+          <button
+            onClick={toggleTestKeys}
+            className={`w-full py-2 px-4 rounded-md text-white font-medium flex items-center justify-center ${
+              showTestKeys
+                ? 'bg-accent-600 hover:bg-accent-500'
+                : 'bg-dark-700 hover:bg-dark-600'
+            } transition-colors`}
+          >
+            <UserRound className="mr-2" size={16} />
+            {showTestKeys ? 'Hide Test Keys' : 'Show Test Keys'}
+          </button>
+        </div>
+        
+        {/* Test Keys Section */}
+        {showTestKeys && (
+          <div className="mt-2 p-3 bg-dark-700 rounded-md">
+            <h3 className="text-md font-medium text-white mb-2">Available Test Keys</h3>
+            
+            {loadingTestKeys && (
+              <div className="flex items-center justify-center py-4">
+                <RefreshCw className="animate-spin text-primary-400 mr-2" size={16} />
+                <span className="text-gray-400">Loading test keys...</span>
+              </div>
+            )}
+            
+            {testKeysError && (
+              <div className="p-2 bg-error-900/30 border border-error-700/50 rounded-md text-error-400 text-sm mb-3">
+                {testKeysError}
+              </div>
+            )}
+            
+            {!loadingTestKeys && !testKeysError && testKeys.length === 0 && (
+              <div className="text-gray-400 text-center py-2">No test keys available</div>
+            )}
+            
+            {!loadingTestKeys && testKeys.length > 0 && (
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {testKeys.map((testKey) => (
+                  <div 
+                    key={testKey.index}
+                    className="flex items-center justify-between bg-dark-800 p-2 rounded-md hover:bg-dark-700 transition-colors"
+                  >
+                    <div className="flex items-center">
+                      <UserRound className="mr-2 text-gray-400" size={16} />
+                      <div>
+                        <div className="font-medium text-white">{testKey.username}</div>
+                        <div className="text-xs text-gray-400">ID: {testKey.user_id}</div>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => testKeyHelper(testKey)}
+                      className="px-2 py-1 bg-primary-600 hover:bg-primary-500 text-white text-xs rounded-md"
+                    >
+                      Use Key
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
       
       {/* Profile Management */}
